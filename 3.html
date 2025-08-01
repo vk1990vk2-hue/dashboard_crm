@@ -1,0 +1,1471 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Advanced CRM Tasks Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"/>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; padding: 20px; overflow-x: hidden; }
+        .dashboard-header { background: linear-gradient(135deg, #6B73FF 0%, #000DFF 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.5rem; font-weight: 600; }
+        .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border: none; transition: transform .2s, box-shadow .2s; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 12px rgba(0,0,0,0.15); }
+        .card-header { background-color: #2c3e50; color: #fff; border-radius: 10px 10px 0 0 !important; display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; }
+        .card-title { margin-bottom: 0; font-size: 1.15rem; font-weight: 500; }
+        .card-body { padding: 15px; }
+        .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-block; }
+        .status-completed { background-color: #28a745; color: #fff; }
+        .status-inprogress { background-color: #ffc107; color: #212529; }
+        .status-queued { background-color: #6c757d; color: #fff; }
+        .status-paused { background-color: #dc3545; color: #fff; }
+        .table-responsive { max-height: 500px; overflow-y: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        #tasksTable { border-collapse: separate; border-spacing: 0; width: 100%; }
+        #tasksTable th, #tasksTable td { vertical-align: middle; padding: 12px 15px; }
+        #tasksTable thead th { background-color: #e9ecef; color: #495057; font-weight: 600; text-transform: uppercase; font-size: .875rem; border-bottom: 1px solid #dee2e6; }
+        #tasksTable tbody tr:nth-child(odd) { background-color: #f8f9fa; }
+        #tasksTable tbody tr:hover { background-color: #e2e6ea; cursor: pointer; }
+        .priority-high { color: #dc3545; font-weight: bold; }
+        .priority-medium { color: #ffc107; font-weight: bold; }
+        .priority-low { color: #28a745; font-weight: bold; }
+        .filter-section { background-color: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,.05); margin-bottom: 20px; }
+        .filter-section label { font-weight: 500; margin-bottom: 8px; color: #555; }
+        .form-select, .form-control, .form-label { font-size: .9rem; }
+        .kpi-card { text-align: center; padding: 20px; border-radius: 10px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.05); height: 100%; display: flex; flex-direction: column; justify-content: center; }
+        .kpi-value { font-size: 2.2rem; font-weight: bold; margin: 10px 0; color: #333; }
+        .kpi-label { font-size: 1rem; color: #6c757d; font-weight: 500; }
+        .modal-comments { max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; padding: 10px; background-color: #fdfdfd; }
+        .comment-item { border-left: 3px solid #007bff; padding-left: 10px; margin-bottom: 15px; background-color: #fff; padding-top: 5px; padding-bottom: 5px; }
+        .comment-date { font-size: 12px; color: #6c757d; margin-bottom: 5px; display: block; }
+        .task-details { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0; }
+        .edit-btn { cursor: pointer; color: #007bff; margin-left: 8px; font-size: 1.1rem; vertical-align: middle; }
+        .edit-btn:hover { color: #0056b3; }
+        .chart-container { position: relative; height: 300px; margin-bottom: 20px; }
+        .sort-icon { font-size: .8em; margin-left: 5px; }
+        .sorted-asc::after, .sorted-desc::after { content: none !important; }
+        .overdue { background-color: #ffdddd !important; }
+        .due-soon { background-color: #fff3cd !important; }
+        .on-track { background-color: #d4edda !important; }
+        .timeline-bar { height: 20px; background-color: #e9ecef; border-radius: 10px; margin-bottom: 10px; overflow: hidden; position: relative; width: 100%; }
+        .timeline-progress { height: 100%; background-color: #28a745; border-radius: 10px; transition: width .5s ease-in-out; }
+        .timeline-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; text-align: center; color: #fff; line-height: 20px; font-size: 12px; font-weight: bold; }
+        .col-editable { position: relative; }
+        .col-editable:hover .edit-btn { display: inline-block; }
+        .edit-btn-placeholder { display: inline-block; width: 20px; height: 1em; vertical-align: middle; }
+        .kpi-filter-toggle { display: flex; align-items: center; justify-content: center; margin-top: 10px; font-size: .9rem; color: #6c757d; }
+        .kpi-filter-toggle .form-check-input { margin-left: 10px; }
+        #taskSearch { max-width: 300px; }
+        .drag-over { border-color: #007bff !important; border-style: dashed !important; background-color: #e7f3ff !important; }
+
+        /* Мобильная адаптация */
+        @media (max-width: 767.98px) {
+            body { padding: 10px; }
+            h1 { font-size: 1.6rem; }
+            .dashboard-header { padding: 15px; }
+            .kpi-card { padding: 15px; margin-bottom: 10px; }
+            .kpi-value { font-size: 1.8rem; }
+            .filter-section .row.g-3 > [class*="col-"] { flex: 0 0 100%; max-width: 100%; }
+            .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            #taskSearch { max-width: 100%; width: 100%; }
+            .table-responsive { max-height: none; }
+            /* Псевдо-карточки вместо таблицы */
+            #tasksTable thead { display: none; }
+            #tasksTable, #tasksTable tbody, #tasksTable tr, #tasksTable td { display: block; width: 100%; }
+            #tasksTable tr { margin-bottom: 12px; border: 1px solid #e9ecef; border-radius: 8px; background: #fff; padding: 8px 10px; }
+            #tasksTable td { padding: 6px 0; border: none !important; }
+            #tasksTable td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 0.8rem;
+                color: #6c757d;
+                margin-bottom: 2px;
+            }
+            .timeline-bar { height: 16px; }
+            .timeline-text { font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="dashboard-header">
+        <div class="row align-items-center">
+            <div class="col-md-8"><h1 class="mb-0"><i class="bi bi-clipboard-data me-2"></i> Advanced CRM Tasks Dashboard</h1></div>
+            <div class="col-md-4 text-md-end text-center">
+                <button class="btn btn-outline-light me-2" id="uploadExcelBtn"><i class="bi bi-upload"></i> Загрузить Excel</button>
+                <input type="file" id="excelFileInput" accept=".xlsx,.xls" multiple style="display:none;">
+                <button class="btn btn-outline-light me-2" id="saveDashboardBtn"><i class="bi bi-cloud-arrow-up"></i> Сохранить данные</button>
+                <button class="btn btn-outline-light" id="saveHtmlBtn"><i class="bi bi-file-earmark-arrow-down"></i> Сохранить в HTML</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="filter-section">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label">Категория:</label>
+                        <select id="categoryFilter" class="form-select" multiple size="3"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label">Статус:</label>
+                        <select id="statusFilter" class="form-select" multiple size="3">
+                            <option value="Завершена">Завершена</option>
+                            <option value="В работе">В работе</option>
+                            <option value="В очереди">В очереди</option>
+                            <option value="Пауза">Пауза</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="responsibleFilter" class="form-label">Ответственный:</label>
+                        <select id="responsibleFilter" class="form-select" multiple size="3">
+                            <option value="Промомед">Промомед</option>
+                            <option value="Мастердата">Мастердата</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="priorityFilter" class="form-label">Приоритет:</label>
+                        <select id="priorityFilter" class="form-select" multiple size="3">
+                            <option value="3">Высокий</option>
+                            <option value="2">Средний</option>
+                            <option value="1">Низкий</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dueStatusFilter" class="form-label">Статус выполнения:</label>
+                        <select id="dueStatusFilter" class="form-select" multiple size="3">
+                            <option value="overdue">Просроченные</option>
+                            <option value="due-soon">Скоро срок</option>
+                            <option value="on-track">По плану</option>
+                            <option value="no-due-date">Без срока</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12 d-flex flex-wrap gap-2">
+                        <button id="applyFilters" class="btn btn-primary px-3"><i class="bi bi-filter-square me-1"></i> Применить</button>
+                        <button id="resetFilters" class="btn btn-outline-secondary px-3"><i class="bi bi-arrow-clockwise me-1"></i> Сбросить</button>
+                        <input type="text" id="taskSearch" class="form-control w-auto flex-grow-1" placeholder="Поиск по описанию...">
+                        <button id="addTask" class="btn btn-success px-3 ms-auto"><i class="bi bi-plus-circle me-1"></i> Добавить задачу</button>
+                        <button id="exportExcel" class="btn btn-warning px-3"><i class="bi bi-file-earmark-excel me-1"></i> Экспорт Excel</button>
+                        <button id="addChartBtn" class="btn btn-info px-3"><i class="bi bi-plus-circle me-1"></i> Добавить график</button>
+                        <button id="deleteAllTasksBtn" class="btn btn-danger px-3 ms-auto"><i class="bi bi-trash me-1"></i> Удалить все задачи</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-label">Всего задач</div><div class="kpi-value" id="totalTasks">0</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-label">Завершено</div><div class="kpi-value" id="completedTasks">0</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-label">В работе</div><div class="kpi-value" id="inProgressTasks">0</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-label">Просрочено</div><div class="kpi-value" id="overdueTasks">0</div></div></div>
+    </div>
+    <div class="row justify-content-center mt-2">
+        <div class="col-md-4">
+            <div class="kpi-filter-toggle">
+                Учитывать фильтры в KPI:
+                <div class="form-check form-switch ms-2">
+                    <input class="form-check-input" type="checkbox" id="filterKpiToggle" role="switch" checked>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4" id="chartsRow"></div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Список задач</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="tasksTable">
+                            <thead id="tasksTableHead">
+                            <tr>
+                                <th data-column="Категория">Категория</th>
+                                <th data-column="Описание задачи">Описание задачи</th>
+                                <th data-column="Ответственный">Ответственный</th>
+                                <th data-column="Приоритет">Приоритет</th>
+                                <th data-column="Статус" class="sorted-desc">Статус</th>
+                                <th data-column="dueDate">Срок выполнения</th>
+                                <th data-column="completedDate">Дата завершения</th>
+                                <th>Дней на выполнение</th>
+                                <th>Прогресс</th>
+                                <th>Действия</th>
+                            </tr>
+                            </thead>
+                            <tbody id="tasksTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Details Modal -->
+<div class="modal fade" id="taskDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" id="taskModalTitle">Задача</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="task-details">
+                <div class="row mb-2">
+                    <div class="col-md-6 col-editable">
+                        <strong>Категория:</strong> <span id="modalCategory">-</span>
+                        <span class="edit-btn d-none" onclick="enableEdit('Category')"><i class="bi bi-pencil"></i></span>
+                        <input class="form-control d-none" id="editCategory" list="categoryList">
+                    </div>
+                    <div class="col-md-6 col-editable">
+                        <strong>Приоритет:</strong> <span id="modalPriority" class="priority-low">-</span>
+                        <span class="edit-btn d-none" onclick="enableEdit('Priority')"><i class="bi bi-pencil"></i></span>
+                        <select class="form-control d-none" id="editPriority">
+                            <option value="3">Высокий</option>
+                            <option value="2">Средний</option>
+                            <option value="1">Низкий</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-6 col-editable">
+                        <strong>Ответственный:</strong> <span id="modalResponsible">-</span>
+                        <span class="edit-btn d-none" onclick="enableEdit('Responsible')"><i class="bi bi-pencil"></i></span>
+                        <select class="form-control d-none" id="editResponsible">
+                            <option value="Промомед">Промомед</option>
+                            <option value="Мастердата">Мастердата</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 col-editable">
+                        <strong>Статус:</strong> <span id="modalStatus">-</span>
+                        <span class="edit-btn d-none" onclick="enableEdit('Status')"><i class="bi bi-pencil"></i></span>
+                        <select class="form-control d-none" id="editStatus">
+                            <option value="Завершена">Завершена</option>
+                            <option value="В работе">В работе</option>
+                            <option value="В очереди">В очереди</option>
+                            <option value="Пауза">Пауза</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-6"><strong>Дата создания:</strong> <span id="modalCreatedDate">-</span></div>
+                    <div class="col-md-6"><strong>Дата завершения:</strong> <span id="modalCompletedDate">-</span></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-6 col-editable">
+                        <strong>Плановая дата завершения:</strong> <span id="modalDueDate">-</span>
+                        <span class="edit-btn d-none" onclick="enableEdit('DueDate')"><i class="bi bi-pencil"></i></span>
+                        <input type="date" class="form-control d-none" id="editDueDate">
+                    </div>
+                    <div class="col-md-6"><strong>Дней на выполнение:</strong> <span id="modalDaysToComplete">-</span></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 col-editable">
+                        <strong>Описание задачи:</strong>
+                        <p id="modalDescription">-</p>
+                        <span class="edit-btn d-none" onclick="enableEdit('Description')"><i class="bi bi-pencil"></i></span>
+                        <textarea class="form-control d-none" id="editDescription" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="mt-4">История обновлений:</h6>
+            <div class="modal-comments" id="modalComments"><p>Нет истории обновлений</p></div>
+
+            <div class="mt-3">
+                <label for="newComment" class="form-label">Добавить комментарий:</label>
+                <textarea class="form-control" id="newComment" rows="3"></textarea>
+                <button class="btn btn-primary mt-2" onclick="addComment()">Добавить</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            <button type="button" class="btn btn-primary d-none" id="saveChangesBtn" onclick="saveTaskChanges()">Сохранить изменения</button>
+        </div>
+    </div></div>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTaskModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Добавить новую задачу</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <label for="newTaskCategory" class="form-label">Категория:</label>
+                <input type="text" class="form-control" id="newTaskCategory" list="categoryList">
+                <datalist id="categoryList"></datalist>
+            </div>
+            <div class="mb-3">
+                <label for="newTaskDescription" class="form-label">Описание задачи:</label>
+                <textarea class="form-control" id="newTaskDescription" rows="3"></textarea>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="newTaskResponsible" class="form-label">Ответственный:</label>
+                    <select class="form-select" id="newTaskResponsible">
+                        <option value="Промомед">Промомед</option>
+                        <option value="Мастердата">Мастердата</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="newTaskPriority" class="form-label">Приоритет:</label>
+                    <select class="form-select" id="newTaskPriority">
+                        <option value="3">Высокий</option>
+                        <option value="2">Средний</option>
+                        <option value="1">Низкий</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="newTaskStatus" class="form-label">Статус:</label>
+                    <select class="form-select" id="newTaskStatus">
+                        <option value="В очереди">В очереди</option>
+                        <option value="В работе">В работе</option>
+                        <option value="Пауза">Пауза</option>
+                        <option value="Завершена">Завершена</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="newTaskDueDate" class="form-label">Плановая дата завершения:</label>
+                    <input type="date" class="form-control" id="newTaskDueDate">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="newTaskComment" class="form-label">Первоначальный комментарий:</label>
+                <textarea class="form-control" id="newTaskComment" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="button" class="btn btn-primary" onclick="addNewTask()">Добавить задачу</button>
+        </div>
+    </div></div>
+</div>
+
+<!-- Add Chart Modal -->
+<div class="modal fade" id="addChartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Добавить новый график</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <label for="chartType" class="form-label">Тип графика:</label>
+                <select class="form-select" id="chartType">
+                    <option value="bar">Столбчатая диаграмма</option>
+                    <option value="pie">Круговая диаграмма</option>
+                    <option value="line">Линейный график</option>
+                    <option value="doughnut">Кольцевая диаграмма</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="chartTitle" class="form-label">Название графика:</label>
+                <input type="text" class="form-control" id="chartTitle" placeholder="Название графика">
+            </div>
+            <div class="mb-3">
+                <label for="chartDataField" class="form-label">Группировка данных (ось X / сегменты):</label>
+                <select class="form-select" id="chartDataField">
+                    <option value="Категория">Категория</option>
+                    <option value="Ответственный">Ответственный</option>
+                    <option value="Приоритет">Приоритет</option>
+                    <option value="Статус">Статус</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="chartSize" class="form-label">Размер колонки:</label>
+                <select class="form-select" id="chartSize">
+                    <option value="6">Большой (50%)</option>
+                    <option value="12">Полная ширина</option>
+                    <option value="4">Маленький (33%)</option>
+                    <option value="3">Очень маленький (25%)</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="button" class="btn btn-primary" onclick="addNewChart()">Добавить график</button>
+        </div>
+    </div></div>
+</div>
+
+<!-- Export Chart Modal -->
+<div class="modal fade" id="exportChartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Экспорт графика</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <label for="exportFormat" class="form-label">Формат:</label>
+                <select class="form-select" id="exportFormat">
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="pdf">PDF</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="exportFileName" class="form-label">Имя файла:</label>
+                <input type="text" class="form-control" id="exportFileName" placeholder="Имя файла">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="button" class="btn btn-primary" onclick="exportChart()">Экспортировать</button>
+        </div>
+    </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Global
+    let tasks = [];
+    let currentTaskId = null;
+    let currentChartId = null;
+    let charts = [];
+    let currentSortColumn = 'Статус';
+    let sortDirection = -1;
+
+    // Modals
+    const taskDetailsModalEl = document.getElementById('taskDetailsModal');
+    const taskDetailsModal = new bootstrap.Modal(taskDetailsModalEl);
+    const addTaskModalEl = document.getElementById('addTaskModal');
+    const addTaskModal = new bootstrap.Modal(addTaskModalEl);
+    const addChartModalEl = document.getElementById('addChartModal');
+    const addChartModal = new bootstrap.Modal(addChartModalEl);
+    const exportChartModalEl = document.getElementById('exportChartModal');
+    const exportChartModal = new bootstrap.Modal(exportChartModalEl);
+
+    // DOM refs
+    const taskSearchInput = document.getElementById('taskSearch');
+    const filterKpiToggle = document.getElementById('filterKpiToggle');
+
+    // Helpers
+    function generateId(){ return Math.random().toString(36).substring(2) + Date.now().toString(36); }
+    function getTaskValue(task, key){ return task[key] || ''; }
+    function setTaskValue(task, key, value){ task[key]=value; }
+    function normalizeDate(dateString){
+        if(!dateString) return '';
+        let d = new Date(dateString);
+        if(isNaN(d.getTime())){
+            const parts = dateString.split(/[.\-\/]/);
+            if(parts.length===3){ d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0])); }
+        }
+        if(isNaN(d.getTime())) return '';
+        return d.toISOString().split('T')[0];
+    }
+    function getTodayDate(){ return new Date().toISOString().split('T')[0]; }
+
+    // Excel parsing
+    function parseExcel(file){
+        const reader = new FileReader();
+        reader.onload = function(e){
+            try{
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type:'array', cellDates:true});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header:'H', defval:'' });
+                if(!jsonData || jsonData.length===0) throw new Error('Файл не содержит данных');
+                const cnt = addTasksFromExcel(jsonData);
+                alert(`Успешно загружено ${cnt} новых задач.`);
+                initializeDashboard();
+            }catch(err){
+                console.error('Ошибка при парсинге Excel файла:', err);
+                alert(`Произошла ошибка при загрузке файла: ${err.message}`);
+            }
+        };
+        reader.onerror = function(){ alert('Ошибка при чтении файла'); };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function addTasksFromExcel(excelData){
+        let addedCount=0;
+        const newTasks=[];
+        const excelHeaders = Object.keys(excelData[0]||{}).map(h=>h.trim());
+        const headerMappingConfig = {
+            'Категория':['Категория'],
+            'Описание задачи':['Описание задачи','Описание'],
+            'Ответственный':['Ответственный','Исполнитель'],
+            'Приоритет':['Приоритет'],
+            'Статус':['Статус'],
+            'dueDate':['Срок выполнения','Срок','Дата завершения'],
+            'createdDate':['Дата создания','Создана'],
+            'completedDate':['Фактическая дата завершения','Дата закрытия','Дата завершения факт']
+        };
+        const headerMapping = {};
+        excelHeaders.forEach(excelHeader=>{
+            for(const internalKey in headerMappingConfig){
+                if(headerMappingConfig[internalKey].some(x=>x.toLowerCase()===excelHeader.toLowerCase())){
+                    headerMapping[excelHeader]=internalKey; break;
+                }
+            }
+        });
+
+        excelData.forEach(row=>{
+            const task = {
+                id: generateId(),
+                updates: [],
+                createdDate: '',
+                dueDate: '',
+                completedDate:'',
+                'Категория':'',
+                'Описание задачи':'',
+                'Ответственный':'',
+                'Приоритет':'',
+                'Статус':''
+            };
+            let hasEssential=false;
+            for(const excelHeader in row){
+                const internalKey = headerMapping[excelHeader.trim()];
+                if(internalKey){
+                    let value = row[excelHeader];
+                    if(value instanceof Date){
+                        value = value.toISOString().split('T')[0];
+                    }else if(typeof value==='string' && value.trim()!==''){
+                        const n = normalizeDate(value.trim()); if(n) value=n;
+                    }else if(typeof value==='number' && (excelHeader.toLowerCase().includes('date') || excelHeader.toLowerCase().includes('срок'))){
+                        const d = new Date(Date.UTC(1899,11,30+value));
+                        if(!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
+                    }
+                    setTaskValue(task, internalKey, value);
+                    if((internalKey==='Категория' || internalKey==='Описание задачи') && value && value.toString().trim()!=='') hasEssential=true;
+                }
+            }
+            for(const excelHeader in row){
+                if(!headerMapping[excelHeader]){
+                    const v=row[excelHeader];
+                    if(v && v.toString().trim()!==''){
+                        try{
+                            const d=new Date(excelHeader);
+                            if(!isNaN(d.getTime())){
+                                const dateString = d.toISOString().split('T')[0] + ' ' + d.toLocaleTimeString('ru-RU');
+                                task.updates.push({date: dateString, comment: v.toString().trim()});
+                            }
+                        }catch(e){}
+                    }
+                }
+            }
+            if(!hasEssential) return;
+            const isDuplicate = tasks.some(t=> getTaskValue(t,'Категория')===getTaskValue(task,'Категория') && getTaskValue(t,'Описание задачи')===getTaskValue(task,'Описание задачи'));
+            if(isDuplicate) return;
+            if(!task.createdDate) task.createdDate = getTodayDate();
+
+            // Преобразование приоритета (в Excel мог прийти текст)
+            if(task['Приоритет']){
+                const pv = String(task['Приоритет']).trim().toLowerCase();
+                if(['высокий','high','3'].includes(pv)) task['Приоритет']='3';
+                else if(['средний','medium','2'].includes(pv)) task['Приоритет']='2';
+                else if(['низкий','low','1'].includes(pv)) task['Приоритет']='1';
+                else task['Приоритет']='1';
+            } else {
+                task['Приоритет']='1';
+            }
+
+            // completedDate, если статус завершен
+            if(getTaskValue(task,'Статус')==='Завершена' && !task.completedDate){
+                task.completedDate = task.dueDate || task.createdDate;
+            }
+            newTasks.push(task);
+            addedCount++;
+        });
+        tasks.push(...newTasks);
+        return addedCount;
+    }
+
+    // KPI
+    function updateKPIs(){
+        const tasksForKPI = filterKpiToggle.checked ? getFilteredTasks() : tasks;
+        const total = tasksForKPI.length;
+        const completed = tasksForKPI.filter(t=>getTaskValue(t,'Статус')==='Завершена').length;
+        const inProgress = tasksForKPI.filter(t=>getTaskValue(t,'Статус')==='В работе').length;
+        const today=new Date(); today.setHours(0,0,0,0);
+        const overdue = tasksForKPI.filter(t=>{
+            const st=getTaskValue(t,'Статус'); if(st==='Завершена') return false;
+            const due=getTaskValue(t,'dueDate'); if(!due) return false;
+            return new Date(due)<today;
+        }).length;
+        document.getElementById('totalTasks').textContent = total;
+        document.getElementById('completedTasks').textContent = completed;
+        document.getElementById('inProgressTasks').textContent = inProgress;
+        document.getElementById('overdueTasks').textContent = overdue;
+    }
+
+    // DnD for charts
+    let draggedItem = null;
+    function handleDragStart(e){
+        const col = e.target.closest('[data-chart-id]');
+        draggedItem = col;
+        if(draggedItem){
+            e.dataTransfer.effectAllowed='move';
+            e.dataTransfer.setData('text/plain', draggedItem.dataset.chartId||'');
+            draggedItem.classList.add('drag-over');
+        }
+    }
+    function handleDragOver(e){
+        e.preventDefault();
+        const col=e.target.closest('[data-chart-id]');
+        if(col) col.classList.add('drag-over');
+    }
+    function handleDragLeave(e){
+        const col=e.target.closest('[data-chart-id]');
+        if(col) col.classList.remove('drag-over');
+    }
+    function handleDrop(e){
+        e.preventDefault();
+        const targetCol=e.target.closest('[data-chart-id]');
+        if(targetCol) targetCol.classList.remove('drag-over');
+        if(!draggedItem || !targetCol || draggedItem===targetCol) return;
+        const chartsRow=document.getElementById('chartsRow');
+        const allColumns=Array.from(chartsRow.children);
+        const draggedIndex=allColumns.indexOf(draggedItem);
+        const targetIndex=allColumns.indexOf(targetCol);
+        if(draggedIndex<targetIndex) chartsRow.insertBefore(draggedItem, targetCol.nextSibling);
+        else chartsRow.insertBefore(draggedItem, targetCol);
+        saveDashboardConfig();
+        draggedItem=null;
+    }
+    function attachDragAndDropListeners(){
+        const cols=document.querySelectorAll('#chartsRow [data-chart-id]');
+        cols.forEach(col=>{
+            col.setAttribute('draggable','true');
+            col.addEventListener('dragstart', handleDragStart);
+            col.addEventListener('dragover', handleDragOver);
+            col.addEventListener('dragleave', handleDragLeave);
+            col.addEventListener('drop', handleDrop);
+        });
+    }
+
+    // Charts
+    function initializeCharts(){
+        const chartsRow=document.getElementById('chartsRow');
+        chartsRow.innerHTML='';
+        charts=[];
+
+        const savedCharts = JSON.parse(localStorage.getItem('crmDashboardCharts'))||[];
+        savedCharts.forEach(c=> addChart(c.id,c.title,c.type,c.dataField,c.size,false));
+
+        if(charts.length===0){
+            addChart('statusChart','Распределение задач по статусам','doughnut','Статус',6);
+            addChart('categoryChart','Распределение задач по категориям','bar','Категория',6);
+        }
+        attachDragAndDropListeners();
+    }
+
+    function addChart(id,title,type,dataField,size,saveToStorage=true){
+        try{
+            const chartsRow=document.getElementById('chartsRow');
+            const col=document.createElement('div');
+            col.className=`col-12 col-md-${size}`;
+            col.id=`col-${id}`;
+            col.dataset.chartId=id;
+            col.innerHTML=`
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">${title}</h5>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-secondary me-2 export-chart-btn" data-bs-toggle="tooltip" title="Экспорт графика" data-chart-id="${id}">
+                                <i class="bi bi-download"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-chart-btn" data-bs-toggle="tooltip" title="Удалить график" data-chart-id="${id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="${id}"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chartsRow.appendChild(col);
+            new bootstrap.Tooltip(col.querySelector('.export-chart-btn'));
+            new bootstrap.Tooltip(col.querySelector('.delete-chart-btn'));
+
+            const filteredTasks=getFilteredTasks();
+            const labels=[...new Set(filteredTasks.map(t=>getTaskValue(t,dataField)))].filter(Boolean)
+                .sort((a,b)=>{ if(!isNaN(a)&&!isNaN(b)) return Number(a)-Number(b); return String(a).localeCompare(String(b)); });
+            const data=labels.map(l=> filteredTasks.filter(t=>getTaskValue(t,dataField)===l).length);
+
+            const canvas=document.getElementById(id); if(!canvas){ console.error('Canvas not found',id); return null; }
+            const ctx=canvas.getContext('2d');
+
+            const chartInstance=new Chart(ctx,{
+                type,
+                data:{
+                    labels,
+                    datasets:[{
+                        label:'Количество задач',
+                        data,
+                        backgroundColor:getChartColors(type,labels.length),
+                        borderColor:getChartColors(type,labels.length),
+                        borderWidth:1
+                    }]
+                },
+                options:{
+                    responsive:true,
+                    maintainAspectRatio:false,
+                    plugins:{
+                        legend:{ position: ['pie','doughnut'].includes(type)?'right':'top', labels:{font:{size:12}} },
+                        title:{ display:true, text:title, font:{size:14, weight:'bold'}, padding:{top:10,bottom:10} },
+                        tooltip:{ enabled:true, titleFont:{size:13}, bodyFont:{size:12} }
+                    },
+                    animation:{ duration:800, easing:'easeInOutQuart' },
+                    interaction:{ mode:'index', intersect:false },
+                    scales: (type==='bar'||type==='line') ? {
+                        y:{ beginAtZero:true, ticks:{ font:{size:12} } },
+                        x:{ ticks:{ font:{size:12} } }
+                    } : {}
+                }
+            });
+
+            charts.push({ id, title, type, dataField, size, chartInstance });
+
+            const exportBtn=col.querySelector(`.export-chart-btn[data-chart-id="${id}"]`);
+            const deleteBtn=col.querySelector(`.delete-chart-btn[data-chart-id="${id}"]`);
+            if(exportBtn){
+                exportBtn.addEventListener('click', ()=>{
+                    currentChartId=id;
+                    document.getElementById('exportFileName').value=title;
+                    exportChartModal.show();
+                });
+            }
+            if(deleteBtn){
+                deleteBtn.addEventListener('click', ()=>{
+                    if(confirm(`Удалить график "${title}"?`)){
+                        const idx=charts.findIndex(c=>c.id===id);
+                        if(idx!==-1){ charts[idx].chartInstance.destroy(); charts.splice(idx,1); }
+                        col.remove();
+                        if(saveToStorage) saveDashboardConfig();
+                    }
+                });
+            }
+
+            attachDragAndDropListeners();
+            if(saveToStorage) saveDashboardConfig();
+            return { id,title,type,dataField,size,chartInstance };
+        }catch(err){
+            console.error(`Ошибка при создании графика '${title}':`, err);
+            return null;
+        }
+    }
+
+    function getChartColors(type,count){
+        const colors=['#007bff','#28a745','#ffc107','#dc3545','#17a2b8','#6c757d','#fd7e14','#198754','#0dcaf0','#6f42c1'];
+        if(type==='pie'||type==='doughnut'){
+            const arr=[]; for(let i=0;i<count;i++){ const hue=(i*360/Math.max(count,1))%360; arr.push(`hsl(${hue},70%,${60+(i%2*10)}%)`); }
+            return arr;
+        }
+        return colors.concat(colors).slice(0,count);
+    }
+
+    function updateCharts(){
+        if(!charts||charts.length===0) return;
+        charts.forEach(ch=>{
+            try{
+                const filteredTasks=getFilteredTasks();
+                const labels=[...new Set(filteredTasks.map(t=>getTaskValue(t,ch.dataField)))].filter(Boolean)
+                    .sort((a,b)=>{ if(!isNaN(a)&&!isNaN(b)) return Number(a)-Number(b); return String(a).localeCompare(String(b)); });
+                const data=labels.map(l=> filteredTasks.filter(t=>getTaskValue(t,ch.dataField)===l).length);
+                ch.chartInstance.data.labels=labels;
+                ch.chartInstance.data.datasets[0].data=data;
+                ch.chartInstance.data.datasets[0].backgroundColor=getChartColors(ch.type,labels.length);
+                ch.chartInstance.data.datasets[0].borderColor=getChartColors(ch.type,labels.length);
+                ch.chartInstance.update();
+            }catch(err){ console.error(`Error updating chart '${ch.title}':`, err); }
+        });
+    }
+
+    // Table
+    function initializeTable(){
+        const tableHead=document.getElementById('tasksTableHead');
+        const tableBody=document.getElementById('tasksTableBody');
+        tableBody.innerHTML='';
+
+        tableHead.querySelectorAll('th[data-column]').forEach(th=>{
+            th.style.cursor='pointer';
+            th.onclick=()=>sortTasks(th.dataset.column);
+            th.classList.remove('sorted-asc','sorted-desc');
+            const icon=th.querySelector('.sort-icon'); if(icon) icon.remove();
+        });
+
+        const filteredTasks=getFilteredTasks();
+        if(filteredTasks.length===0){
+            const row=document.createElement('tr');
+            row.innerHTML='<td colspan="10" class="text-center text-muted py-4">Нет задач, соответствующих выбранным фильтрам.</td>';
+            tableBody.appendChild(row); return;
+        }
+
+        filteredTasks.sort((a,b)=>{
+            const A=getTaskValue(a,currentSortColumn), B=getTaskValue(b,currentSortColumn);
+            if(currentSortColumn==='Приоритет'){
+                // Теперь 3 - высокий приоритет, 1 - низкий
+                const pa=parseInt(A)||1, pb=parseInt(B)||1;
+                // При сортировке по возрастанию: 1,2,3; по убыванию: 3,2,1
+                return (pa-pb)*sortDirection;
+            }else if(currentSortColumn==='Статус'){
+                const order={'Завершена':0,'В работе':1,'В очереди':2,'Пауза':3};
+                const sa=order[A]||4, sb=order[B]||4; return (sa-sb)*sortDirection;
+            }else if(currentSortColumn==='dueDate' || currentSortColumn==='completedDate'){
+                const da=A?new Date(A):new Date(0), db=B?new Date(B):new Date(0); return (da-db)*sortDirection;
+            }else{
+                return String(A).localeCompare(String(B))*sortDirection;
+            }
+        });
+
+        const currentColHeader=tableHead.querySelector(`th[data-column="${currentSortColumn}"]`);
+        if(currentColHeader){
+            currentColHeader.classList.add(sortDirection===1?'sorted-asc':'sorted-desc');
+            const icon=document.createElement('i');
+            icon.className=`bi bi-arrow-${sortDirection===1?'up':'down'} sort-icon`;
+            currentColHeader.appendChild(icon);
+        }
+
+        filteredTasks.forEach(task=>{
+            const row=document.createElement('tr');
+            row.dataset.taskId=task.id;
+
+            if(getTaskValue(task,'Статус')!=='Завершена'){
+                const rc=getRowClass(task); if(rc) row.classList.add(rc);
+            }
+
+            // Категория
+            const c1=createCell(getTaskValue(task,'Категория'));
+            c1.setAttribute('data-label','Категория');
+            row.appendChild(c1);
+
+            // Описание
+            const dcell=createCell(getTaskValue(task,'Описание задачи'));
+            dcell.setAttribute('data-label','Описание задачи');
+            highlightText(dcell, taskSearchInput.value); row.appendChild(dcell);
+
+            // Ответственный
+            const c2=createCell(getTaskValue(task,'Ответственный'));
+            c2.setAttribute('data-label','Ответственный');
+            row.appendChild(c2);
+
+            // Приоритет (3-высокий, 2-средний, 1-низкий)
+            const prVal=getTaskValue(task,'Приоритет');
+            const prText=prVal==='3'?'Высокий':prVal==='2'?'Средний':'Низкий';
+            const prCell=createCell(prText);
+            prCell.setAttribute('data-label','Приоритет');
+            prCell.classList.add(prVal==='3'?'priority-high':prVal==='2'?'priority-medium':'priority-low');
+            row.appendChild(prCell);
+
+            // Статус
+            const stVal=getTaskValue(task,'Статус');
+            const stCell=createCell('');
+            stCell.setAttribute('data-label','Статус');
+            const stBadge=document.createElement('span');
+            stBadge.classList.add('status-badge', getStatusBadgeClass(stVal));
+            stBadge.textContent=stVal||'Не указан';
+            stCell.appendChild(stBadge);
+            row.appendChild(stCell);
+
+            // Срок выполнения
+            const dueCell=createCell(getTaskValue(task,'dueDate')||'-');
+            dueCell.setAttribute('data-label','Срок выполнения');
+            row.appendChild(dueCell);
+
+            // Дата завершения
+            const compCell=createCell(task.completedDate||'-');
+            compCell.setAttribute('data-label','Дата завершения');
+            row.appendChild(compCell);
+
+            // Дней на выполнение
+            const daysCell=createCell(getTaskToDaysToComplete(task));
+            daysCell.setAttribute('data-label','Дней на выполнение');
+            row.appendChild(daysCell);
+
+            // Прогресс
+            const pbCell=createCell('');
+            pbCell.setAttribute('data-label','Прогресс');
+            pbCell.appendChild(createProgressBar(task));
+            row.appendChild(pbCell);
+
+            // Действия
+            const actions=createCell('');
+            actions.setAttribute('data-label','Действия');
+            actions.appendChild(createActionButton('<i class="bi bi-eye"></i>', 'btn-outline-primary', ()=>viewTaskDetails(task.id)));
+            actions.appendChild(createActionButton('<i class="bi bi-pencil"></i>', 'btn-outline-secondary', ()=>editTask(task.id)));
+            actions.appendChild(createActionButton('<i class="bi bi-trash"></i>', 'btn-outline-danger', ()=>deleteTask(task.id)));
+            row.appendChild(actions);
+
+            tableBody.appendChild(row);
+        });
+    }
+
+    function createCell(content, tag='td'){
+        const el=document.createElement(tag);
+        if(typeof content==='string') el.innerHTML=content; else el.appendChild(content);
+        return el;
+    }
+    function createActionButton(iconHtml, cls, onClick){
+        const b=document.createElement('button');
+        b.className=`btn btn-sm ${cls} me-1`; b.innerHTML=iconHtml; b.onclick=onClick;
+        let tip=''; if(iconHtml.includes('eye')) tip='Просмотр'; else if(iconHtml.includes('pencil')) tip='Редактировать'; else if(iconHtml.includes('trash')) tip='Удалить';
+        b.setAttribute('data-bs-toggle','tooltip'); b.setAttribute('title', tip);
+        return b;
+    }
+    function createProgressBar(task){
+        const wrap=document.createElement('div'); wrap.className='timeline-bar';
+        const prog=document.createElement('div'); prog.className='timeline-progress';
+        const txt=document.createElement('div'); txt.className='timeline-text';
+        let percent=0; const st=getTaskValue(task,'Статус');
+        if(getTaskValue(task,'dueDate') && getTaskValue(task,'createdDate')){
+            const created=new Date(getTaskValue(task,'createdDate'));
+            const due=new Date(getTaskValue(task,'dueDate'));
+            const today=new Date(); today.setHours(0,0,0,0);
+            const total=Math.max(1, Math.floor(Math.abs(due-created)/(1000*60*60*24)));
+            let days=0;
+            if(st==='Завершена' && task.completedDate){
+                const comp=new Date(task.completedDate);
+                days=Math.floor((comp-created)/(1000*60*60*24));
+            }else{
+                days=Math.floor((today-created)/(1000*60*60*24));
+            }
+            percent=Math.min(Math.max((days/total)*100,0),100);
+            prog.style.width=`${percent}%`; txt.textContent=`${Math.round(percent)}%`;
+        }else{ prog.style.width='0%'; txt.textContent='N/A'; }
+        prog.appendChild(txt); wrap.appendChild(prog); return wrap;
+    }
+    function getRowClass(task){
+        const due=getTaskValue(task,'dueDate'); if(!due) return '';
+        const today=new Date(); today.setHours(0,0,0,0);
+        const d=new Date(due);
+        const diff=Math.floor((d.getTime()-today.getTime())/(1000*60*60*24));
+        if(diff<0) return 'overdue'; if(diff<=3) return 'due-soon'; return 'on-track';
+    }
+    function getStatusBadgeClass(status){
+        switch(status){
+            case 'Завершена': return 'status-completed';
+            case 'В работе': return 'status-inprogress';
+            case 'Пауза': return 'status-paused';
+            case 'В очереди': return 'status-queued';
+            default: return 'status-queued';
+        }
+    }
+    function getTaskToDaysToComplete(task){
+        const cr=getTaskValue(task,'createdDate');
+        const due=getTaskValue(task,'dueDate');
+        const comp=task.completedDate;
+        if(getTaskValue(task,'Статус')==='Завершена' && cr && comp){
+            const c=new Date(cr), d=new Date(comp);
+            if(!isNaN(c.getTime()) && !isNaN(d.getTime())) return `Выполнено за ${Math.floor((d-c)/(1000*60*60*24))} д.`;
+        }else if(due && cr){
+            const c=new Date(cr), d=new Date(due);
+            if(!isNaN(c.getTime()) && !isNaN(d.getTime())) return `Срок: ${Math.floor((d-c)/(1000*60*60*24))} д.`;
+        }
+        return '-';
+    }
+
+    // Filtering / sorting
+    function applyFilters(){ initializeTable(); updateCharts(); updateKPIs(); }
+    function resetFilters(){
+        document.getElementById('categoryFilter').querySelectorAll('option').forEach(o=>o.selected=false);
+        document.getElementById('statusFilter').querySelectorAll('option').forEach(o=>o.selected=false);
+        document.getElementById('responsibleFilter').querySelectorAll('option').forEach(o=>o.selected=false);
+        document.getElementById('priorityFilter').querySelectorAll('option').forEach(o=>o.selected=false);
+        document.getElementById('dueStatusFilter').querySelectorAll('option').forEach(o=>o.selected=false);
+        taskSearchInput.value=''; applyFilters();
+    }
+    function sortTasks(column){
+        if(currentSortColumn===column) sortDirection*=-1; else { currentSortColumn=column; sortDirection=1; }
+        initializeTable();
+    }
+    function getFilteredTasks(){
+        const catSel=Array.from(document.getElementById('categoryFilter').selectedOptions).map(o=>o.value);
+        const stSel=Array.from(document.getElementById('statusFilter').selectedOptions).map(o=>o.value);
+        const respSel=Array.from(document.getElementById('responsibleFilter').selectedOptions).map(o=>o.value);
+        const prSel=Array.from(document.getElementById('priorityFilter').selectedOptions).map(o=>o.value);
+        const dueSel=Array.from(document.getElementById('dueStatusFilter').selectedOptions).map(o=>o.value);
+        const term=taskSearchInput.value.trim().toLowerCase();
+        const today=new Date(); today.setHours(0,0,0,0);
+
+        return tasks.filter(task=>{
+            const cm = catSel.length===0 || catSel.includes(getTaskValue(task,'Категория'));
+            const sm = stSel.length===0 || stSel.includes(getTaskValue(task,'Статус'));
+            const rm = respSel.length===0 || respSel.includes(getTaskValue(task,'Ответственный'));
+            const pm = prSel.length===0 || prSel.includes(getTaskValue(task,'Приоритет'));
+            const dm = !term || getTaskValue(task,'Описание задачи').toLowerCase().includes(term);
+
+            let dueMatch = dueSel.length===0;
+            if(dueSel.length>0){
+                const hasDue = getTaskValue(task,'dueDate');
+                const st = getTaskValue(task,'Статус');
+                if(!hasDue && dueSel.includes('no-due-date')) dueMatch=true;
+                else if(hasDue){
+                    const d=new Date(getTaskValue(task,'dueDate'));
+                    const days=Math.floor((d-today)/(1000*60*60*24));
+                    if(dueSel.includes('overdue') && days<0 && st!=='Завершена') dueMatch=true;
+                    else if(dueSel.includes('due-soon') && days>=0 && days<=3 && st!=='Завершена') dueMatch=true;
+                    else if(dueSel.includes('on-track') && days>3 && st!=='Завершена') dueMatch=true;
+                }
+            }
+            return cm && sm && rm && pm && dm && dueMatch;
+        });
+    }
+    function highlightText(el,text){
+        if(!text||text.length===0){ el.innerHTML=el.textContent; return; }
+        const rx=new RegExp(`(${text.replace(/[-\\/^$*+?.()|[$${}]/g,'\\$&')})`,'gi');
+        el.innerHTML = el.innerHTML.replace(rx,'<span class="bg-warning bg-opacity-25">$1</span>');
+    }
+
+    // Modal task view/edit
+    function viewTaskDetails(taskId){
+        const task=tasks.find(t=>t.id===taskId); if(!task) return;
+        currentTaskId=taskId;
+        document.getElementById('taskModalTitle').textContent=`Задача: ${getTaskValue(task,'Категория')||'Без категории'}`;
+        displayTaskField('Category', task, 'Категория');
+        displayTaskField('Description', task, 'Описание задачи');
+        displayTaskField('Responsible', task, 'Ответственный');
+        displayTaskField('Priority', task, 'Приоритет', (val)=> val==='3'?{text:'Высокий',class:'priority-high'}:val==='2'?{text:'Средний',class:'priority-medium'}:{text:'Низкий',class:'priority-low'});
+        displayTaskField('Status', task, 'Статус', (val)=>{ const b=document.createElement('span'); b.classList.add('status-badge',getStatusBadgeClass(val)); b.textContent=val||'Не указан'; return b; });
+        displayTaskField('CreatedDate', task, 'createdDate');
+        displayTaskField('DueDate', task, 'dueDate');
+        displayTaskField('CompletedDate', task, 'completedDate');
+        displayTaskField('DaysToComplete', task, null, ()=>getTaskToDaysToComplete(task));
+        populateComments(task);
+        document.getElementById('saveChangesBtn').classList.add('d-none');
+        taskDetailsModal.show();
+    }
+
+    function displayTaskField(fieldName, task, taskKey, formatter=null){
+        const modalField=document.getElementById(`modal${fieldName}`);
+        const editField=document.getElementById(`edit${fieldName}`);
+        const editBtn=document.querySelector(`[onclick*="enableEdit('${fieldName[0].toLowerCase()+fieldName.slice(1)}')"]`);
+
+        let displayValue='-'; let displayClass=''; let editValue='';
+        if(taskKey){
+            const raw=getTaskValue(task,taskKey); editValue=raw;
+            if(formatter){
+                const f=formatter(raw,task);
+                if(typeof f==='object' && f){ displayValue=f.text||'-'; displayClass=f.class||''; }
+                else if(f instanceof HTMLElement){ if(modalField){ modalField.replaceWith(f); f.id=`modal${fieldName}`; } }
+                else displayValue=f||'-';
+            }else displayValue=raw||'-';
+        }else if(formatter){
+            const f=formatter(null, task);
+            if(typeof f==='object' && f){ displayValue=f.text||'-'; displayClass=f.class||''; }
+            else displayValue=f||'-';
+        }
+
+        if(modalField && !(formatter && (modalField.tagName==='SPAN' && modalField.classList.contains('status-badge')))){
+            if(modalField.tagName==='P' || modalField.tagName==='SPAN') modalField.textContent=displayValue;
+            else modalField.textContent=displayValue;
+            modalField.className = modalField.className.split(' ').filter(c=>!c.startsWith('priority-') && !c.startsWith('status-')).join(' ');
+            if(displayClass) displayClass.split(' ').forEach(c=>modalField.classList.add(c));
+        }
+        if(editField){
+            if(editField.tagName==='SELECT') {
+                const opt=Array.from(editField.options).find(o=> String(o.value)===String(editValue) || o.textContent===displayValue);
+                if(opt) opt.selected=true; else editField.value=editValue||''; 
+            } else {
+                editField.value=editValue||'';
+            }
+        }
+        if(editBtn){
+            const isVisible = editField && !editField.classList.contains('d-none');
+            editBtn.classList.toggle('d-none', isVisible);
+        }
+    }
+
+    function enableEdit(field){
+        const modalField=document.getElementById(`modal${field}`);
+        const editField=document.getElementById(`edit${field}`);
+        const editBtn=document.querySelector(`[onclick*="enableEdit('${field[0].toLowerCase()+field.slice(1)}')"]`);
+        if(modalField) modalField.classList.add('d-none');
+        if(editField) editField.classList.remove('d-none');
+        if(editBtn) editBtn.classList.add('d-none');
+        if(editField) editField.focus();
+        document.getElementById('saveChangesBtn').classList.remove('d-none');
+    }
+
+    function saveTaskChanges(){
+        const task = tasks.find(t=>t.id===currentTaskId);
+        if(!task) return;
+
+        const prevStatus=getTaskValue(task,'Статус');
+        updateTaskField('Category');
+        updateTaskField('Description', true);
+        updateTaskField('Responsible');
+        updateTaskField('Priority');
+        updateTaskField('Status');
+        updateTaskField('DueDate');
+
+        const newStatus=getTaskValue(task,'Статус');
+        if(newStatus==='Завершена' && prevStatus!=='Завершена'){
+            task.completedDate = getTodayDate();
+            const exists= (task.updates||[]).some(u=>u.comment==='Статус изменено на: Завершена');
+            if(!exists){
+                const now=new Date(); const ds=now.toISOString().split('T')[0]+' '+now.toLocaleTimeString('ru-RU');
+                if(!task.updates) task.updates=[];
+                task.updates.push({date: ds, comment:'Статус изменено на: Завершена'});
+            }
+        } else if(newStatus!=='Завершена' && task.completedDate){
+            task.completedDate='';
+        }
+
+        // Update modal computed
+        let daysStr='-';
+        if(task.createdDate && task.completedDate){
+            const c=new Date(task.createdDate), d=new Date(task.completedDate);
+            if(!isNaN(c.getTime()) && !isNaN(d.getTime())) daysStr=`Выполнено за ${Math.floor((d-c)/(1000*60*60*24))} д.`;
+        } else if(task.createdDate && getTaskValue(task,'dueDate')){
+            const c=new Date(task.createdDate), d=new Date(getTaskValue(task,'dueDate'));
+            if(!isNaN(c.getTime()) && !isNaN(d.getTime())) daysStr=`Срок: ${Math.floor((d-c)/(1000*60*60*24))} д.`;
+        }
+        document.getElementById('modalDaysToComplete').textContent=daysStr;
+        document.getElementById('modalCompletedDate').textContent = task.completedDate || '-';
+
+        // Reset UI
+        taskDetailsModalEl.querySelectorAll('.col-editable').forEach(col=>{
+            const ebtn=col.querySelector('.edit-btn');
+            const mfield=col.querySelector('span:not(.edit-btn), p:not(.edit-btn)');
+            const efield=col.querySelector('select, input, textarea');
+            if(mfield && efield){ mfield.classList.remove('d-none'); efield.classList.add('d-none'); }
+            if(ebtn) ebtn.classList.remove('d-none');
+        });
+
+        initializeTable(); updateCharts(); updateKPIs(); saveDashboardData();
+        alert('Изменения сохранены');
+        document.getElementById('saveChangesBtn').classList.add('d-none');
+    }
+
+    function updateTaskField(fieldName, isTextArea=false){
+        const task = tasks.find(t=>t.id===currentTaskId); if(!task) return;
+        const modalField=document.getElementById(`modal${fieldName}`);
+        const editField=document.getElementById(`edit${fieldName}`);
+        const editBtn=document.querySelector(`[onclick*="enableEdit('${fieldName[0].toLowerCase()+fieldName.slice(1)}')"]`);
+
+        if(!editField) return;
+        let value = editField.value;
+
+        if(fieldName==='DueDate' && value) value = normalizeDate(value);
+
+        if(fieldName==='Category'){
+            task['Категория'] = value || '';
+            if(modalField) modalField.textContent = task['Категория'] || '-';
+            updateFilterOptions();
+        } else if(fieldName==='Description'){
+            task['Описание задачи'] = value || '';
+            const el=document.getElementById('modalDescription'); if(el) el.textContent=task['Описание задачи']||'-';
+        } else if(fieldName==='Responsible'){
+            task['Ответственный']= value || '';
+            const el=document.getElementById('modalResponsible'); if(el) el.textContent=task['Ответственный']||'-';
+        } else if(fieldName==='Priority'){
+            // 3-высокий, 2-средний, 1-низкий
+            task['Приоритет']= value || '1';
+            if(modalField){
+                const pv=task['Приоритет'];
+                modalField.textContent = pv==='3'?'Высокий':pv==='2'?'Средний':'Низкий';
+                modalField.className = modalField.className.split(' ').filter(c=>!c.startsWith('priority-')).join(' ');
+                modalField.classList.add(`priority-${pv==='3'?'high':pv==='2'?'medium':'low'}`);
+            }
+        } else if(fieldName==='Status'){
+            task['Статус']= value || '';
+            if(modalField){
+                modalField.textContent = task['Статус']||'Не указан';
+                modalField.className = `status-badge ${getStatusBadgeClass(task['Статус'])}`;
+            }
+        } else if(fieldName==='DueDate'){
+            task.dueDate = value || '';
+            const el=document.getElementById('modalDueDate'); if(el) el.textContent=task.dueDate||'-';
+        }
+
+        if(modalField) modalField.classList.remove('d-none');
+        editField.classList.add('d-none');
+        if(editBtn) editBtn.classList.remove('d-none');
+    }
+
+    function populateComments(task){
+        const box=document.getElementById('modalComments');
+        box.innerHTML='';
+        if(!task.updates || task.updates.length===0){ box.innerHTML='<p class="text-muted">Нет истории обновлений</p>'; return; }
+        const updates=[...task.updates].sort((a,b)=> new Date(b.date)-new Date(a.date));
+        updates.forEach(u=>{
+            const d=document.createElement('div'); d.className='comment-item';
+            const ds=document.createElement('span'); ds.className='comment-date';
+            ds.textContent=new Date(u.date).toLocaleString('ru-RU',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            const ct=document.createElement('div'); ct.textContent=u.comment;
+            d.appendChild(ds); d.appendChild(ct); box.appendChild(d);
+        });
+    }
+
+    function addComment(){
+        const txt=document.getElementById('newComment').value.trim();
+        if(!txt){ alert('Пожалуйста, введите текст комментария.'); return; }
+        const task=tasks.find(t=>t.id===currentTaskId); if(!task) return;
+        if(!task.updates) task.updates=[];
+        const now=new Date(); const ds=now.toISOString().split('T')[0]+' '+now.toLocaleTimeString('ru-RU');
+        task.updates.push({date: ds, comment: txt});
+        document.getElementById('newComment').value='';
+        populateComments(task); saveDashboardData();
+    }
+
+    // New task
+    function addNewTask(){
+        const category=document.getElementById('newTaskCategory').value.trim();
+        const description=document.getElementById('newTaskDescription').value.trim();
+        const responsible=document.getElementById('newTaskResponsible').value;
+        const priority=document.getElementById('newTaskPriority').value;
+        const status=document.getElementById('newTaskStatus').value;
+        const dueRaw=document.getElementById('newTaskDueDate').value;
+        const dueDate = dueRaw ? normalizeDate(dueRaw) : '';
+        const comment=document.getElementById('newTaskComment').value.trim();
+        if(!category || !description){ alert('Пожалуйста, заполните поля "Категория" и "Описание задачи".'); return; }
+
+        const now=new Date();
+        const dateString = now.toISOString().split('T')[0] + ' ' + now.toLocaleTimeString('ru-RU');
+
+        const newTask = {
+            id: generateId(),
+            'Категория': category,
+            'Описание задачи': description,
+            'Ответственный': responsible,
+            // 3-высокий, 2-средний, 1-низкий
+            'Приоритет': priority || '1',
+            'Статус': status,
+            dueDate: dueDate,
+            createdDate: dateString,
+            updates: [],
+            completedDate: ''
+        };
+        if(status==='Завершена') newTask.completedDate = getTodayDate();
+        if(comment) newTask.updates.push({date: dateString, comment});
+
+        tasks.push(newTask);
+        document.getElementById('newTaskCategory').value='';
+        document.getElementById('newTaskDescription').value='';
+        document.getElementById('newTaskComment').value='';
+        document.getElementById('newTaskDueDate').value='';
+        addTaskModal.hide();
+
+        initializeDashboard();
+        saveDashboardData();
+        alert('Новая задача успешно добавлена');
+    }
+
+    function deleteTask(taskId){
+        if(!confirm('Вы уверены, что хотите удалить эту задачу? Это действие необратимо.')) return;
+        tasks = tasks.filter(t=>t.id!==taskId);
+        initializeTable(); updateCharts(); updateKPIs(); saveDashboardData();
+        alert('Задача удалена.');
+    }
+
+    // Add chart button
+    function addNewChart(){
+        const chartType=document.getElementById('chartType').value;
+        const chartTitle=document.getElementById('chartTitle').value.trim();
+        const dataField=document.getElementById('chartDataField').value;
+        const size=document.getElementById('chartSize').value;
+        if(!chartTitle){ alert('Пожалуйста, укажите название графика.'); return; }
+        const newChartId=`chart-${generateId()}`;
+        addChart(newChartId, chartTitle, chartType, dataField, size);
+        document.getElementById('chartTitle').value='';
+        addChartModal.hide();
+    }
+
+    // Export chart
+    function exportChart(){
+        const format=document.getElementById('exportFormat').value;
+        const fileName=document.getElementById('exportFileName').value.trim()||'chart';
+        const chartData=charts.find(c=>c.id===currentChartId);
+        if(!chartData){ console.error('Chart data not found'); return; }
+        const canvas=document.getElementById(currentChartId);
+        if(!canvas){ console.error('Canvas not found'); return; }
+        if(format==='pdf'){
+            const { jsPDF } = window.jspdf;
+            const pdf=new jsPDF('p','pt','a4');
+            const container=document.getElementById(`col-${currentChartId}`);
+            if(!container){ console.error('Container not found for PDF'); return; }
+            html2canvas(container, {useCORS:true, scale:2}).then(cv=>{
+                const img=cv.toDataURL('image/png');
+                const pw=pdf.internal.pageSize.getWidth()-40;
+                const ph=pdf.internal.pageSize.getHeight()-40;
+                const cw=cv.width, ch=cv.height;
+                const ratio=Math.min(pw/cw, ph/ch);
+                const iw=cw*ratio, ih=ch*ratio;
+                const m=20, x=(pw-iw)/2 + 20, y=m;
+                pdf.addImage(img,'PNG',x,y,iw,ih);
+                pdf.save(`${fileName}.pdf`);
+            }).catch(err=>{
+                console.error('html2canvas error',err); alert('Ошибка при создании PDF. Проверьте консоль.');
+            });
+        }else{
+            canvas.toBlob(function(blob){
+                const a=document.createElement('a');
+                a.href=URL.createObjectURL(blob);
+                a.download=`${fileName}.${format}`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }, `image/${format}`);
+        }
+        exportChartModal.hide();
+    }
+
+    // Persistence
+    function saveDashboardData(){ localStorage.setItem('crmDashboardTasks', JSON.stringify(tasks)); }
+    function saveDashboardConfig(){
+        const cfg=charts.map(c=>({id:c.id,title:c.title,type:c.type,dataField:c.dataField,size:c.size}));
+        localStorage.setItem('crmDashboardCharts', JSON.stringify(cfg));
+    }
+    function saveCurrentDashboardState(){ saveDashboardData(); saveDashboardConfig(); alert('Данные и настройки графиков сохранены.'); }
+    function saveHtmlFile(){
+        saveDashboardData(); saveDashboardConfig();
+        const docClone=document.cloneNode(true);
+        const dataScript=docClone.createElement('script');
+        dataScript.textContent=`
+            window.__savedTasks = ${JSON.stringify(tasks)};
+            window.__savedCharts = ${JSON.stringify(charts.map(c=>({id:c.id,title:c.title,type:c.type,dataField:c.dataField,size:c.size})))};
+        `;
+        docClone.head.appendChild(dataScript);
+        const html=docClone.documentElement.outerHTML;
+        const blob=new Blob([html],{type:'text/html'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download='CRM_Dashboard_Export.html';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+    function loadDashboard(){
+        const savedTasks=localStorage.getItem('crmDashboardTasks');
+        if(savedTasks){ try{ tasks=JSON.parse(savedTasks);}catch(e){ console.error('parse tasks',e); tasks=[]; } }
+        const savedCharts=localStorage.getItem('crmDashboardCharts');
+        if(savedCharts){ try{ JSON.parse(savedCharts).forEach(c=> addChart(c.id,c.title,c.type,c.dataField,c.size,false)); }catch(e){ console.error('parse charts',e); } }
+        initializeDashboard();
+    }
+
+    // Initialize
+    function initializeDashboard(){
+        initializeTable(); initializeCharts(); updateKPIs(); updateFilterOptions();
+        const tips=[].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tips.forEach(el=> new bootstrap.Tooltip(el));
+    }
+
+    function updateFilterOptions(){
+        const categories=[...new Set(tasks.map(t=>getTaskValue(t,'Категория')).filter(Boolean))].sort();
+        const categoryFilter=document.getElementById('categoryFilter');
+        const categoryListDatalist=document.getElementById('categoryList');
+        categoryFilter.innerHTML=''; categoryListDatalist.innerHTML='';
+        categories.forEach(cat=>{
+            const opt=document.createElement('option'); opt.value=cat; opt.textContent=cat; categoryFilter.appendChild(opt);
+            const dopt=document.createElement('option'); dopt.value=cat; categoryListDatalist.appendChild(dopt);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+        loadDashboard();
+        document.getElementById('applyFilters').addEventListener('click', applyFilters);
+        document.getElementById('resetFilters').addEventListener('click', resetFilters);
+        taskSearchInput.addEventListener('input', applyFilters);
+        document.getElementById('addTask').addEventListener('click', ()=>addTaskModal.show());
+        document.getElementById('exportExcel').addEventListener('click', exportToExcel);
+        document.getElementById('addChartBtn').addEventListener('click', ()=>addChartModal.show());
+        document.getElementById('uploadExcelBtn').addEventListener('click', ()=>document.getElementById('excelFileInput').click());
+        document.getElementById('excelFileInput').addEventListener('change', (e)=>{
+            if(!e.target.files || e.target.files.length===0) return;
+            Array.from(e.target.files).forEach(file=>parseExcel(file));
+            e.target.value='';
+        });
+        document.getElementById('saveDashboardBtn').addEventListener('click', saveCurrentDashboardState);
+        document.getElementById('saveHtmlBtn').addEventListener('click', saveHtmlFile);
+        filterKpiToggle.addEventListener('change', updateKPIs);
+
+        taskDetailsModalEl.querySelectorAll('select, input[type="date"], textarea, input[list]').forEach(field=>{
+            field.addEventListener('focus', function(){
+                const name=this.id.replace(/^edit|modal/,'');
+                const btn=document.querySelector(`[onclick*="enableEdit('${name[0].toLowerCase()+name.slice(1)}')"]`);
+                if(btn){
+                    const mf=document.getElementById(`modal${name}`);
+                    if(mf && !mf.classList.contains('d-none')) btn.classList.remove('d-none');
+                }
+            });
+        });
+
+        document.getElementById('deleteAllTasksBtn').addEventListener('click', deleteAllTasks);
+    });
+
+    // Export to Excel
+    function exportToExcel(){
+        const data=tasks.map(task=>{
+            const out={
+                'Категория': getTaskValue(task,'Категория'),
+                'Описание задачи': getTaskValue(task,'Описание задачи'),
+                'Ответственный': getTaskValue(task,'Ответственный'),
+                'Приоритет': (()=>{ // 3-высокий, 2-средний, 1-низкий
+                    const p=getTaskValue(task,'Приоритет'); if(p==='3') return 'Высокий'; if(p==='2') return 'Средний'; return 'Низкий';
+                })(),
+                'Статус': getTaskValue(task,'Статус'),
+                'Дата создания': task.createdDate || '',
+                'Плановая дата завершения': getTaskValue(task,'dueDate') || '',
+                'Дата завершения': task.completedDate || ''
+            };
+            if(task.updates && task.updates.length>0){
+                const ups=[...task.updates].sort((a,b)=> new Date(a.date)-new Date(b.date));
+                ups.forEach(u=>{
+                    const d=new Date(u.date);
+                    const header=d.toISOString().replace('T',' ').split('.')[0];
+                    out[header]=u.comment;
+                });
+            }
+            return out;
+        });
+        const ws=XLSX.utils.json_to_sheet(data);
+        const wb=XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'CRM Tasks');
+        XLSX.writeFile(wb, 'CRM_Tasks_Export.xlsx');
+    }
+
+    function deleteAllTasks(){
+        if(!confirm('Вы уверены, что хотите удалить ВСЕ задачи? Это действие необратимо.')) return;
+        tasks=[]; initializeDashboard(); saveDashboardData(); alert('Все задачи удалены.');
+    }
+
+    function editTask(taskId){
+        const task=tasks.find(t=>t.id===taskId); if(!task) return;
+        currentTaskId=taskId;
+        document.getElementById('taskModalTitle').textContent=`Редактирование: ${getTaskValue(task,'Категория')||'Без категории'}`;
+
+        displayTaskField('Category', task, 'Категория');
+        displayTaskField('Description', task, 'Описание задачи');
+        displayTaskField('Responsible', task, 'Ответственный');
+        displayTaskField('Priority', task, 'Приоритет', (val)=> val==='3'?{text:'Высокий',class:'priority-high'}:val==='2'?{text:'Средний',class:'priority-medium'}:{text:'Низкий',class:'priority-low'});
+        displayTaskField('Status', task, 'Статус', (val)=>{ const b=document.createElement('span'); b.classList.add('status-badge',getStatusBadgeClass(val)); b.textContent=val||'Не указан'; return b; });
+        displayTaskField('CreatedDate', task, 'createdDate');
+        displayTaskField('DueDate', task, 'dueDate');
+        displayTaskField('CompletedDate', task, 'completedDate');
+        displayTaskField('DaysToComplete', task, null, ()=>getTaskToDaysToComplete(task));
+        populateComments(task);
+
+        document.getElementById('saveChangesBtn').classList.remove('d-none');
+        taskDetailsModal.show();
+
+        taskDetailsModalEl.querySelectorAll('.col-editable').forEach(col=>{
+            const ebtn=col.querySelector('.edit-btn');
+            const mfield=col.querySelector('span:not(.edit-btn), p:not(.edit-btn)');
+            const efield=col.querySelector('select, input, textarea');
+            if(efield && efield.classList.contains('d-none') && mfield && !mfield.classList.contains('d-none')){
+                if(ebtn) ebtn.classList.remove('d-none');
+            } else if(efield && !efield.classList.contains('d-none')){
+                if(mfield) mfield.classList.add('d-none'); if(ebtn) ebtn.classList.add('d-none');
+            }
+        });
+    }
+</script>
+</body>
+</html>
